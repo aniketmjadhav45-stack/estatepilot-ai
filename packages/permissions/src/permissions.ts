@@ -1,0 +1,123 @@
+export const PERMISSIONS = {
+  // Organization & Workspace
+  ORG_SETTINGS_READ: 'org:settings:read',
+  ORG_SETTINGS_WRITE: 'org:settings:write',
+  ORG_MEMBERS_READ: 'org:members:read',
+  ORG_MEMBERS_WRITE: 'org:members:write',
+  ORG_BRANCHES_WRITE: 'org:branches:write',
+  ORG_TEAMS_WRITE: 'org:teams:write',
+
+  // Properties
+  PROPERTIES_READ: 'properties:read',
+  PROPERTIES_WRITE: 'properties:write',
+  PROPERTIES_PUBLISH: 'properties:publish',
+  PROPERTIES_DELETE: 'properties:delete',
+
+  // CRM & Leads
+  LEADS_READ: 'leads:read',
+  LEADS_WRITE: 'leads:write',
+  LEADS_ASSIGN: 'leads:assign',
+
+  // Sales & Deals
+  DEALS_READ: 'deals:read',
+  DEALS_WRITE: 'deals:write',
+
+  // Appointments
+  APPOINTMENTS_READ: 'appointments:read',
+  APPOINTMENTS_WRITE: 'appointments:write',
+
+  // Unified Inbox
+  INBOX_READ: 'inbox:read',
+  INBOX_WRITE: 'inbox:write',
+
+  // AI Orchestration
+  AI_INVOKE: 'ai:invoke',
+  AI_APPROVE: 'ai:approve',
+
+  // Workflows
+  WORKFLOWS_MANAGE: 'workflows:manage',
+
+  // Billing
+  BILLING_MANAGE: 'billing:manage',
+
+  // Audit
+  AUDIT_READ: 'audit:read',
+} as const;
+
+export type PermissionKey = typeof PERMISSIONS[keyof typeof PERMISSIONS];
+
+/**
+ * Standard Role-to-Permissions Mapping for offline and server-side RBAC evaluation
+ */
+export const ROLE_PERMISSIONS_MAP: Record<string, string[]> = {
+  super_admin: Object.values(PERMISSIONS),
+  org_owner: Object.values(PERMISSIONS),
+  org_admin: Object.values(PERMISSIONS).filter((p) => p !== PERMISSIONS.BILLING_MANAGE),
+  branch_manager: [
+    PERMISSIONS.ORG_MEMBERS_READ,
+    PERMISSIONS.PROPERTIES_READ,
+    PERMISSIONS.PROPERTIES_WRITE,
+    PERMISSIONS.PROPERTIES_PUBLISH,
+    PERMISSIONS.LEADS_READ,
+    PERMISSIONS.LEADS_WRITE,
+    PERMISSIONS.LEADS_ASSIGN,
+    PERMISSIONS.DEALS_READ,
+    PERMISSIONS.DEALS_WRITE,
+    PERMISSIONS.APPOINTMENTS_READ,
+    PERMISSIONS.APPOINTMENTS_WRITE,
+    PERMISSIONS.INBOX_READ,
+    PERMISSIONS.INBOX_WRITE,
+    PERMISSIONS.AI_INVOKE,
+    PERMISSIONS.AI_APPROVE,
+  ],
+  team_lead: [
+    PERMISSIONS.PROPERTIES_READ,
+    PERMISSIONS.PROPERTIES_WRITE,
+    PERMISSIONS.LEADS_READ,
+    PERMISSIONS.LEADS_WRITE,
+    PERMISSIONS.LEADS_ASSIGN,
+    PERMISSIONS.DEALS_READ,
+    PERMISSIONS.DEALS_WRITE,
+    PERMISSIONS.APPOINTMENTS_READ,
+    PERMISSIONS.APPOINTMENTS_WRITE,
+    PERMISSIONS.INBOX_READ,
+    PERMISSIONS.INBOX_WRITE,
+    PERMISSIONS.AI_INVOKE,
+    PERMISSIONS.AI_APPROVE,
+  ],
+  senior_agent: [
+    PERMISSIONS.PROPERTIES_READ,
+    PERMISSIONS.PROPERTIES_WRITE,
+    PERMISSIONS.PROPERTIES_PUBLISH,
+    PERMISSIONS.LEADS_READ,
+    PERMISSIONS.LEADS_WRITE,
+    PERMISSIONS.DEALS_READ,
+    PERMISSIONS.DEALS_WRITE,
+    PERMISSIONS.APPOINTMENTS_READ,
+    PERMISSIONS.APPOINTMENTS_WRITE,
+    PERMISSIONS.INBOX_READ,
+    PERMISSIONS.INBOX_WRITE,
+    PERMISSIONS.AI_INVOKE,
+  ],
+  agent: [
+    PERMISSIONS.PROPERTIES_READ,
+    PERMISSIONS.PROPERTIES_WRITE,
+    PERMISSIONS.LEADS_READ,
+    PERMISSIONS.LEADS_WRITE,
+    PERMISSIONS.DEALS_READ,
+    PERMISSIONS.DEALS_WRITE,
+    PERMISSIONS.APPOINTMENTS_READ,
+    PERMISSIONS.APPOINTMENTS_WRITE,
+    PERMISSIONS.INBOX_READ,
+    PERMISSIONS.INBOX_WRITE,
+    PERMISSIONS.AI_INVOKE,
+  ],
+  support_staff: [
+    PERMISSIONS.PROPERTIES_READ,
+    PERMISSIONS.LEADS_READ,
+    PERMISSIONS.APPOINTMENTS_READ,
+    PERMISSIONS.APPOINTMENTS_WRITE,
+    PERMISSIONS.INBOX_READ,
+    PERMISSIONS.INBOX_WRITE,
+  ],
+};

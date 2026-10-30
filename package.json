@@ -1,0 +1,30 @@
+{
+  "name": "estatepilot-ai-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "EstatePilot AI — Your AI-Powered Real Estate Business Operating System",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm --workspace=apps/web run dev",
+    "build": "npm --workspace=apps/web run build",
+    "lint": "npm run lint --workspaces --if-present",
+    "type-check": "tsc --build --dry",
+    "test": "node --test tests/**/*.test.js",
+    "db:migrate": "echo 'Run supabase db push or use migrations in supabase/migrations/'"
+  },
+  "keywords": [
+    "real-estate",
+    "crm",
+    "ai-agents",
+    "saas",
+    "multi-tenant",
+    "supabase",
+    "nextjs"
+  ],
+  "author": "EstatePilot AI Engineering",
+  "license": "UNLICENSED"
+}
