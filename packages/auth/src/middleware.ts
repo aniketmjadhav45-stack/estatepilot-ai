@@ -10,8 +10,11 @@ export function requirePermission(
 ): void {
   const allowed = hasPermission(
     {
+      userId: ctx.userId,
+      organizationId: ctx.organizationId,
       roleCode: ctx.roleCode,
       userPermissions: ctx.permissions,
+      branchId: ctx.branchId,
     },
     requiredPermission
   );

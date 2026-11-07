@@ -1,321 +1,366 @@
 import React from 'react';
+import Link from 'next/link';
+import { cookies } from 'next/headers';
 import {
   Users,
-  Compass,
+  UserPlus,
   Kanban,
-  Bot,
-  ArrowUpRight,
+  CheckCircle2,
   Clock,
+  ArrowUpRight,
+  TrendingUp,
+  ChevronRight,
+  Sparkles,
   Phone,
   Mail,
   Calendar,
-  Sparkles,
-  ChevronRight,
-  CheckCircle2,
+  AlertCircle,
+  Plus,
 } from 'lucide-react';
+import { createServerClient, getCrmDashboardMetrics, getLeads } from '@estatepilot/database';
+import { ACTIVE_ORG_COOKIE } from '@estatepilot/auth';
 import { StatCard } from '../../components/ui/stat-card';
-import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
+import { EmptyState } from '../../components/ui/empty-state';
 
-export default function AgentDashboardPage() {
-  const stats = [
-    {
-      title: 'Active Deal Pipeline',
-      value: '$4,850,000',
-      change: '14.2% vs last month',
-      isPositive: true,
-      icon: <Kanban className="w-5 h-5 text-brand-600" />,
-      subtitle: '8 deals in active negotiation',
-    },
-    {
-      title: 'High-Intent Leads',
-      value: '24',
-      change: '8 this week',
-      isPositive: true,
-      icon: <Users className="w-5 h-5 text-indigo-600" />,
-      subtitle: 'Qualified with >75 lead score',
-    },
-    {
-      title: 'Listed Properties',
-      value: '18',
-      change: '3 new listings',
-      isPositive: true,
-      icon: <Compass className="w-5 h-5 text-emerald-600" />,
-      subtitle: '12 active, 6 pending escrow',
-    },
-    {
-      title: 'AI Agent Automations',
-      value: '142',
-      change: '99.4% accuracy',
-      isPositive: true,
-      icon: <Bot className="w-5 h-5 text-purple-600" />,
-      subtitle: 'Lead scoring, voice & follow-ups',
-    },
-  ];
+export const dynamic = 'force-dynamic';
 
-  const priorityLeads = [
-    {
-      id: '1',
-      name: 'Sophia Montgomery',
-      email: 'sophia.m@example.com',
-      phone: '+1 (555) 234-8901',
-      score: 92,
-      budget: '$1,200,000 - $1,500,000',
-      preference: '3-Bed Penthouse in Downtown',
-      stage: 'Negotiation',
-      lastTouch: '15 mins ago by Voice Agent',
-    },
-    {
-      id: '2',
-      name: 'David & Claire Vance',
-      email: 'claire.vance@example.com',
-      phone: '+1 (555) 456-7890',
-      score: 86,
-      budget: '$850,000 - $950,000',
-      preference: 'Single Family Home with Garden',
-      stage: 'Qualified',
-      lastTouch: '2 hours ago via WhatsApp',
-    },
-    {
-      id: '3',
-      name: 'Marcus Sterling',
-      email: 'marcus@sterlinginvest.com',
-      phone: '+1 (555) 890-1234',
-      score: 79,
-      budget: '$2,500,000+',
-      preference: 'Commercial Multi-Unit Portfolio',
-      stage: 'Proposal Sent',
-      lastTouch: 'Yesterday via Email',
-    },
-  ];
+export default async function CrmDashboardPage() {
+  const cookieStore = cookies();
+  const token = cookieStore.get('sb-access-token')?.value || '';
+  const activeOrgId = cookieStore.get(ACTIVE_ORG_COOKIE)?.value || 'org_apex_01';
 
-  const upcomingViewings = [
-    {
-      id: 'v1',
-      property: 'The Grandview Residence, Penthouse B',
-      client: 'Sophia Montgomery',
-      time: 'Today, 3:30 PM (45m)',
-      status: 'Confirmed by Calendar',
-    },
-    {
-      id: 'v2',
-      property: 'Oakridge Manor, 742 Willow Lane',
-      client: 'David & Claire Vance',
-      time: 'Tomorrow, 11:00 AM (1h)',
-      status: 'Awaiting Client Confirm',
-    },
-  ];
+  const client = createServerClient(token);
 
-  const liveAiFeed = [
-    {
-      agent: 'Lead Intelligence Agent',
-      action: 'Qualified inbound lead from Zillow with score 86',
-      lead: 'David & Claire Vance',
-      time: '2m ago',
-    },
-    {
-      agent: 'Customer Conversation Agent',
-      action: 'Shared verified brochure & floorplan via WhatsApp',
-      lead: 'Sophia Montgomery',
-      time: '18m ago',
-    },
-    {
-      agent: 'Property Matching Engine',
-      action: 'Matched 3 candidate villas with 94% compatibility',
-      lead: 'Marcus Sterling',
-      time: '1h ago',
-    },
-  ];
+  // Fetch real CRM dashboard metrics
+  const metricsResult = await getCrmDashboardMetrics(client, activeOrgId);
+  const stats = metricsResult.ok
+    ? metricsResult.value
+    : {
+        totalLeads: 0,
+        newLeads: 0,
+        qualifiedLeads: 0,
+        activeDeals: 0,
+        followUpsDue: 0,
+        pipelineOverview: [],
+        sourceBreakdown: [],
+        recentActivities: [],
+      };
+
+  // Fetch top recent leads for action table
+  const recentLeadsResult = await getLeads(client, activeOrgId, { limit: 5, sortBy: 'created_at', sortOrder: 'desc' });
+  const recentLeads = recentLeadsResult.ok ? recentLeadsResult.value.data : [];
+
+  const stageBadgeVariant: Record<string, 'default' | 'success' | 'warning' | 'danger' | 'info' | 'purple'> = {
+    new: 'info',
+    contacted: 'default',
+    qualified: 'purple',
+    proposal: 'warning',
+    negotiation: 'warning',
+    closed_won: 'success',
+    closed_lost: 'danger',
+    unqualified: 'default',
+  };
 
   return (
-    <div className="space-y-6">
-      {/* Top Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-slate-200">
+    <div className="space-y-6 max-w-7xl mx-auto pb-12">
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200/80">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-slate-900">
-            Agent Command Center
-          </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Real-time pipeline performance, AI automated lead routing, and scheduled viewings.
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold tracking-tight text-slate-900">
+              CRM & Pipeline Intelligence
+            </h1>
+            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-brand-50 text-brand-700 border border-brand-200">
+              Live Workspace
+            </span>
+          </div>
+          <p className="text-xs text-slate-500 mt-1">
+            Real-time lead conversion velocity, pipeline health, and team follow-ups.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="gap-1.5">
-            <Calendar className="w-3.5 h-3.5" />
-            <span>Schedule Viewing</span>
-          </Button>
-          <Button variant="primary" size="sm" className="gap-1.5">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Run AI Lead Match</span>
-          </Button>
+
+        <div className="flex items-center gap-2.5">
+          <Link href="/dashboard/leads">
+            <Button size="sm" variant="outline" className="gap-1.5">
+              <Users className="w-3.5 h-3.5 text-slate-500" />
+              <span>All Leads</span>
+            </Button>
+          </Link>
+          <Link href="/dashboard/leads?new=true">
+            <Button size="sm" variant="primary" className="gap-1.5">
+              <Plus className="w-3.5 h-3.5" />
+              <span>Create Lead</span>
+            </Button>
+          </Link>
         </div>
       </div>
 
-      {/* KPI Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat) => (
-          <StatCard key={stat.title} {...stat} />
-        ))}
+      {/* 5 Key Metric Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
+        <StatCard
+          title="Total Leads"
+          value={stats.totalLeads}
+          icon={<Users className="w-4 h-4 text-brand-600" />}
+          subtitle="Active directory"
+        />
+        <StatCard
+          title="New Inquiries"
+          value={stats.newLeads}
+          icon={<UserPlus className="w-4 h-4 text-blue-600" />}
+          subtitle="Awaiting first touch"
+        />
+        <StatCard
+          title="Qualified Leads"
+          value={stats.qualifiedLeads}
+          icon={<CheckCircle2 className="w-4 h-4 text-emerald-600" />}
+          subtitle="Score > 70"
+        />
+        <StatCard
+          title="Active Deals"
+          value={stats.activeDeals}
+          icon={<Kanban className="w-4 h-4 text-amber-600" />}
+          subtitle="Proposal & negotiation"
+        />
+        <StatCard
+          title="Follow-ups Due"
+          value={stats.followUpsDue}
+          icon={<Clock className="w-4 h-4 text-rose-600" />}
+          subtitle="Pending tasks"
+        />
       </div>
 
-      {/* Main Grid: Priority Leads & AI Stream */}
+      {/* Middle Row: Pipeline Funnel Overview & Source Breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left 2 Cols: Priority Lead Queue */}
-        <div className="lg:col-span-2 space-y-6">
-          <Card>
-            <CardHeader className="flex items-center justify-between py-4">
-              <div>
-                <CardTitle>High-Priority Lead Queue</CardTitle>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  AI scored leads requiring immediate agent attention
-                </p>
+        {/* Pipeline Stage Distribution */}
+        <Card className="lg:col-span-2">
+          <CardHeader className="flex flex-row items-center justify-between pb-4">
+            <div>
+              <CardTitle>Lead Pipeline Distribution</CardTitle>
+              <CardDescription>Live distribution across full deal lifecycle stages</CardDescription>
+            </div>
+            <Link
+              href="/dashboard/leads"
+              className="text-xs font-semibold text-brand-600 hover:text-brand-700 flex items-center gap-1"
+            >
+              <span>Manage Pipeline</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
+          </CardHeader>
+          <CardContent>
+            {stats.totalLeads === 0 ? (
+              <EmptyState
+                icon={<Kanban className="w-5 h-5 text-slate-400" />}
+                title="No active pipeline data"
+                description="Ingest or create your first lead to visualize stage progression."
+              />
+            ) : (
+              <div className="space-y-3.5">
+                {stats.pipelineOverview.map((item) => (
+                  <div key={item.stage} className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-slate-800">{item.label}</span>
+                        <span className="text-[11px] font-semibold text-slate-400">
+                          ({item.count})
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {item.totalValue > 0 && (
+                          <span className="text-slate-500 font-medium">
+                            ${item.totalValue.toLocaleString()}
+                          </span>
+                        )}
+                        <span className="font-semibold text-slate-700 w-9 text-right">
+                          {item.percentage}%
+                        </span>
+                      </div>
+                    </div>
+                    {/* Progress Bar */}
+                    <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                      <div
+                        className="bg-brand-600 h-2 rounded-full transition-all duration-500"
+                        style={{ width: `${Math.max(item.count > 0 ? 3 : 0, item.percentage)}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
               </div>
-              <Button variant="ghost" size="sm" className="text-xs gap-1 text-brand-600">
-                View All CRM Leads
-                <ChevronRight className="w-3.5 h-3.5" />
-              </Button>
-            </CardHeader>
-            <CardContent className="p-0 divide-y divide-slate-100">
-              {priorityLeads.map((lead) => (
-                <div
-                  key={lead.id}
-                  className="p-4 hover:bg-slate-50/70 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-slate-900">
-                        {lead.name}
-                      </span>
-                      <Badge
-                        variant={lead.score >= 90 ? 'success' : 'purple'}
-                        size="sm"
-                      >
-                        Score {lead.score}
-                      </Badge>
-                      <Badge variant="default" size="sm">
-                        {lead.stage}
-                      </Badge>
-                    </div>
-                    <p className="text-xs font-medium text-slate-700">
-                      {lead.preference} ·{' '}
-                      <span className="text-slate-500">{lead.budget}</span>
-                    </p>
-                    <div className="flex items-center gap-3 text-[11px] text-slate-400">
-                      <span className="flex items-center gap-1">
-                        <Mail className="w-3 h-3" />
-                        {lead.email}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Phone className="w-3 h-3" />
-                        {lead.phone}
-                      </span>
-                    </div>
-                  </div>
+            )}
+          </CardContent>
+        </Card>
 
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Button variant="secondary" size="sm">
-                      Follow Up
-                    </Button>
-                    <Button variant="primary" size="sm">
-                      View Dossier
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-
-          {/* Upcoming Viewing Visits */}
-          <Card>
-            <CardHeader className="flex items-center justify-between py-4">
-              <CardTitle>Upcoming Site Visits & Appointments</CardTitle>
-              <Badge variant="info" size="sm">
-                2 Scheduled
-              </Badge>
-            </CardHeader>
-            <CardContent className="p-0 divide-y divide-slate-100">
-              {upcomingViewings.map((v) => (
-                <div
-                  key={v.id}
-                  className="p-4 flex items-center justify-between hover:bg-slate-50/60 transition-colors"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 rounded-lg bg-brand-50 text-brand-600 mt-0.5">
-                      <Calendar className="w-4 h-4" />
+        {/* Lead Source Breakdown */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Inquiry Channels</CardTitle>
+            <CardDescription>Attribution sources of prospective buyers</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {stats.sourceBreakdown.length === 0 ? (
+              <div className="py-8 text-center text-xs text-slate-400">
+                No channel data recorded yet.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {stats.sourceBreakdown.map((src) => (
+                  <div
+                    key={src.source}
+                    className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50/70 border border-slate-100"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-slate-800 truncate">{src.label}</p>
+                      <p className="text-[11px] text-slate-400">{src.percentage}% of total leads</p>
                     </div>
-                    <div>
-                      <p className="text-xs font-semibold text-slate-900">
-                        {v.property}
+                    <span className="text-xs font-bold text-slate-900 px-2 py-0.5 rounded-md bg-white border border-slate-200">
+                      {src.count}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Bottom Row: Recent Priority Leads & Activity Stream */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Recent Leads Table */}
+        <Card className="lg:col-span-2">
+          <CardHeader className="flex flex-row items-center justify-between pb-4">
+            <div>
+              <CardTitle>Recent Leads & Inquiries</CardTitle>
+              <CardDescription>Latest prospect inquiries captured into workspace</CardDescription>
+            </div>
+            <Link
+              href="/dashboard/leads"
+              className="text-xs font-semibold text-brand-600 hover:text-brand-700 flex items-center gap-1"
+            >
+              <span>View All</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
+          </CardHeader>
+          <CardContent className="p-0">
+            {recentLeads.length === 0 ? (
+              <div className="p-8">
+                <EmptyState
+                  icon={<Users className="w-5 h-5 text-slate-400" />}
+                  title="No leads registered"
+                  description="Start by adding new prospective buyers or sellers to your workspace."
+                />
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-100 bg-slate-50/50 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                      <th className="py-2.5 px-4">Contact</th>
+                      <th className="py-2.5 px-3">Stage</th>
+                      <th className="py-2.5 px-3">Score</th>
+                      <th className="py-2.5 px-3">Budget</th>
+                      <th className="py-2.5 px-4 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs">
+                    {recentLeads.map((lead) => (
+                      <tr key={lead.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="py-3 px-4">
+                          <div className="font-semibold text-slate-900">
+                            {lead.firstName} {lead.lastName}
+                          </div>
+                          <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
+                            {lead.email && <span className="truncate">{lead.email}</span>}
+                            {lead.phone && <span>{lead.phone}</span>}
+                          </div>
+                        </td>
+                        <td className="py-3 px-3">
+                          <Badge variant={stageBadgeVariant[lead.status] || 'default'} size="sm">
+                            {lead.status.replace('_', ' ')}
+                          </Badge>
+                        </td>
+                        <td className="py-3 px-3">
+                          <span
+                            className={`font-semibold text-xs ${
+                              lead.qualificationScore >= 80
+                                ? 'text-emerald-600'
+                                : lead.qualificationScore >= 50
+                                ? 'text-brand-600'
+                                : 'text-slate-500'
+                            }`}
+                          >
+                            {lead.qualificationScore}/100
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-slate-600 font-medium">
+                          {lead.estimatedBudgetMax
+                            ? `$${lead.estimatedBudgetMax.toLocaleString()}`
+                            : 'Unspecified'}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <Link
+                            href={`/dashboard/leads/${lead.id}`}
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-700"
+                          >
+                            <span>Details</span>
+                            <ArrowUpRight className="w-3.5 h-3.5" />
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Live Activity Timeline */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-brand-600" />
+              <CardTitle>Recent Activity</CardTitle>
+            </div>
+            <CardDescription>Live timeline of interactions & notes</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {stats.recentActivities.length === 0 ? (
+              <div className="py-8 text-center text-xs text-slate-400">
+                No recent activity logged.
+              </div>
+            ) : (
+              <div className="space-y-3.5 relative before:absolute before:inset-0 before:left-3.5 before:w-0.5 before:bg-slate-100">
+                {stats.recentActivities.map((act) => (
+                  <div key={act.id} className="relative flex items-start gap-3 pl-1">
+                    <div className="w-5 h-5 rounded-full bg-brand-50 border border-brand-200 flex items-center justify-center shrink-0 z-10">
+                      <div className="w-1.5 h-1.5 rounded-full bg-brand-600" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-slate-800 leading-tight">
+                        {act.title}
                       </p>
-                      <p className="text-xs text-slate-500">
-                        Client: {v.client} · {v.time}
-                      </p>
+                      {act.description && (
+                        <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2">
+                          {act.description}
+                        </p>
+                      )}
+                      <span className="text-[10px] text-slate-400 mt-1 block">
+                        {new Date(act.createdAt).toLocaleString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
                     </div>
                   </div>
-                  <Badge variant="success" size="sm">
-                    {v.status}
-                  </Badge>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Right 1 Col: Live AI Orchestrator Stream & Approvals */}
-        <div className="space-y-6">
-          {/* AI Activity Ticker */}
-          <Card>
-            <CardHeader className="py-4 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-brand-600" />
-                <CardTitle>Live AI Event Stream</CardTitle>
+                ))}
               </div>
-              <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                Live
-              </span>
-            </CardHeader>
-            <CardContent className="p-4 space-y-3.5">
-              {liveAiFeed.map((item, idx) => (
-                <div key={idx} className="flex gap-2.5 items-start text-xs">
-                  <div className="w-2 h-2 rounded-full bg-brand-500 mt-1.5 shrink-0" />
-                  <div className="space-y-0.5">
-                    <p className="font-semibold text-slate-800">{item.agent}</p>
-                    <p className="text-slate-600 text-[11px] leading-relaxed">
-                      {item.action} for{' '}
-                      <span className="font-medium text-slate-900">{item.lead}</span>
-                    </p>
-                    <span className="text-[10px] text-slate-400">{item.time}</span>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-
-          {/* Pending Human-in-the-Loop Approval Card */}
-          <Card className="border-amber-200 bg-amber-50/20">
-            <CardHeader className="py-3 px-4 bg-amber-50/60 border-b border-amber-200/60">
-              <div className="flex items-center gap-1.5 text-amber-800 text-xs font-semibold">
-                <CheckCircle2 className="w-4 h-4 text-amber-600" />
-                <span>Action Approval Required</span>
-              </div>
-            </CardHeader>
-            <CardContent className="p-4 space-y-2.5">
-              <p className="text-xs text-slate-700">
-                <strong>Property Intelligence Agent</strong> requested to update asking price for{' '}
-                <span className="font-semibold">Villa Serena (Unit 4B)</span> from $1,250,000 to $1,195,000.
-              </p>
-              <div className="flex items-center gap-2 pt-1">
-                <Button size="sm" variant="primary" className="text-xs py-1 px-3">
-                  Approve Price Change
-                </Button>
-                <Button size="sm" variant="outline" className="text-xs py-1 px-3">
-                  Reject
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

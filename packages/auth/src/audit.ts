@@ -17,7 +17,12 @@ export type AuthAuditEventType =
   | 'membership.updated'
   | 'membership.suspended'
   | 'membership.deleted'
-  | 'role.changed';
+  | 'role.changed'
+  | 'lead.created'
+  | 'lead.updated'
+  | 'lead.status_changed'
+  | 'lead.deleted'
+  | (string & {});
 
 export interface AuditLogEntry {
   organizationId?: string | null;
@@ -56,7 +61,8 @@ export async function recordAuditLog(
   try {
     const cleanDiff = sanitizeAuditDiff(entry.diff);
 
-    const { error } = await client.from('audit_logs').insert({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (client.from as any)('audit_logs').insert({
       organization_id: entry.organizationId || null,
       profile_id: entry.userId || null,
       action: entry.action,

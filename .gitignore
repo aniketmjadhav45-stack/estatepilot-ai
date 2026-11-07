@@ -37,3 +37,10 @@ Thumbs.db
 # Testing & Coverage
 coverage/
 .nyc_output/
+
+# Local testing & scratch (excluded from deployment)
+supabase/local-testing/
+supabase/.temp/
+postgresql/
+tests/integration/local-database-verification.test.js
+

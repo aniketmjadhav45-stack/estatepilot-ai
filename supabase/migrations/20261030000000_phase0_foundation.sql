@@ -10,8 +10,7 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 CREATE EXTENSION IF NOT EXISTS "vector";
 CREATE EXTENSION IF NOT EXISTS "citext";
 
--- Ensure auth schema exists in case of running outside standard Supabase container
-CREATE SCHEMA IF NOT EXISTS auth;
+-- Auth schema is natively provisioned and managed by Supabase
 
 -- 2. ENUM TYPES
 DO $$ BEGIN
@@ -246,46 +245,58 @@ CREATE TABLE IF NOT EXISTS public.system_settings (
 );
 
 -- 5. RLS SECURITY HELPER FUNCTIONS
-CREATE OR REPLACE FUNCTION auth.uid() 
+-- Uses native Supabase auth.uid() when available with defensive claim extraction
+CREATE OR REPLACE FUNCTION public.current_auth_user_id()
 RETURNS UUID AS $$
 BEGIN
-    RETURN NULLIF(current_setting('request.jwt.claim.sub', true), '')::UUID;
+    RETURN COALESCE(
+        NULLIF(current_setting('request.jwt.claim.sub', true), '')::UUID,
+        auth.uid()
+    );
 EXCEPTION WHEN OTHERS THEN
-    RETURN NULL;
+    BEGIN
+        RETURN NULLIF(current_setting('request.jwt.claim.sub', true), '')::UUID;
+    EXCEPTION WHEN OTHERS THEN
+        RETURN NULL;
+    END;
 END;
-$$ LANGUAGE plpgsql STABLE;
+$$ LANGUAGE plpgsql STABLE
+SET search_path = public, pg_temp;
 
 CREATE OR REPLACE FUNCTION public.current_user_org_ids() 
 RETURNS SETOF UUID AS $$
     SELECT organization_id 
     FROM public.memberships 
-    WHERE profile_id = auth.uid() 
+    WHERE profile_id = public.current_auth_user_id() 
       AND status = 'active'
       AND deleted_at IS NULL;
-$$ LANGUAGE sql STABLE SECURITY DEFINER;
+$$ LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 CREATE OR REPLACE FUNCTION public.is_org_member(target_org_id UUID) 
 RETURNS BOOLEAN AS $$
     SELECT EXISTS (
         SELECT 1 
         FROM public.memberships 
-        WHERE profile_id = auth.uid() 
+        WHERE profile_id = public.current_auth_user_id() 
           AND organization_id = target_org_id 
           AND status = 'active'
           AND deleted_at IS NULL
     );
-$$ LANGUAGE sql STABLE SECURITY DEFINER;
+$$ LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 CREATE OR REPLACE FUNCTION public.is_super_admin() 
 RETURNS BOOLEAN AS $$
     SELECT EXISTS (
         SELECT 1 
         FROM public.profiles 
-        WHERE id = auth.uid() 
+        WHERE id = public.current_auth_user_id() 
           AND is_platform_admin = TRUE 
           AND deleted_at IS NULL
     );
-$$ LANGUAGE sql STABLE SECURITY DEFINER;
+$$ LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = public, pg_temp;
 
 CREATE OR REPLACE FUNCTION public.has_permission(target_org_id UUID, required_perm_key TEXT) 
 RETURNS BOOLEAN AS $$
@@ -294,13 +305,24 @@ RETURNS BOOLEAN AS $$
         FROM public.memberships m
         JOIN public.role_permissions rp ON rp.role_id = m.role_id
         JOIN public.permissions p ON p.id = rp.permission_id
-        WHERE m.profile_id = auth.uid()
+        WHERE m.profile_id = public.current_auth_user_id()
           AND m.organization_id = target_org_id
           AND m.status = 'active'
           AND m.deleted_at IS NULL
           AND p.key = required_perm_key
     );
-$$ LANGUAGE sql STABLE SECURITY DEFINER;
+$$ LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = public, pg_temp;
+
+REVOKE EXECUTE ON FUNCTION public.current_user_org_ids() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.is_org_member(UUID) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.is_super_admin() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.has_permission(UUID, TEXT) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.current_user_org_ids() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.is_org_member(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.is_super_admin() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.has_permission(UUID, TEXT) TO authenticated;
 
 -- 6. ROW LEVEL SECURITY (RLS) POLICIES
 
@@ -310,7 +332,7 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view their own profile and profiles in their orgs"
 ON public.profiles FOR SELECT
 USING (
-    id = auth.uid() OR
+    id = public.current_auth_user_id() OR
     id IN (
         SELECT profile_id 
         FROM public.memberships 
@@ -321,8 +343,8 @@ USING (
 
 CREATE POLICY "Users can update their own profile"
 ON public.profiles FOR UPDATE
-USING (id = auth.uid())
-WITH CHECK (id = auth.uid());
+USING (id = public.current_auth_user_id())
+WITH CHECK (id = public.current_auth_user_id());
 
 -- Organizations
 ALTER TABLE public.organizations ENABLE ROW LEVEL SECURITY;
@@ -348,7 +370,7 @@ CREATE POLICY "Users can view memberships in their organizations"
 ON public.memberships FOR SELECT
 USING (
     organization_id IN (SELECT public.current_user_org_ids()) OR
-    profile_id = auth.uid() OR
+    profile_id = public.current_auth_user_id() OR
     public.is_super_admin()
 );
 
@@ -393,6 +415,64 @@ USING (
     public.is_super_admin()
 );
 
+-- Team Members (SEC-01)
+ALTER TABLE public.team_members ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Team members view policy"
+ON public.team_members FOR SELECT
+USING (
+    team_id IN (
+        SELECT id FROM public.teams 
+        WHERE organization_id IN (SELECT public.current_user_org_ids())
+    ) OR
+    public.is_super_admin()
+);
+
+CREATE POLICY "Team members insert policy"
+ON public.team_members FOR INSERT
+WITH CHECK (
+    (
+        team_id IN (
+            SELECT id FROM public.teams 
+            WHERE public.has_permission(organization_id, 'org:teams:write')
+        ) AND
+        membership_id IN (
+            SELECT id FROM public.memberships 
+            WHERE organization_id IN (SELECT public.current_user_org_ids())
+        )
+    ) OR
+    public.is_super_admin()
+);
+
+CREATE POLICY "Team members update policy"
+ON public.team_members FOR UPDATE
+USING (
+    team_id IN (
+        SELECT id FROM public.teams 
+        WHERE public.has_permission(organization_id, 'org:teams:write')
+    ) OR
+    public.is_super_admin()
+)
+WITH CHECK (
+    (
+        team_id IN (
+            SELECT id FROM public.teams 
+            WHERE public.has_permission(organization_id, 'org:teams:write')
+        )
+    ) OR
+    public.is_super_admin()
+);
+
+CREATE POLICY "Team members delete policy"
+ON public.team_members FOR DELETE
+USING (
+    team_id IN (
+        SELECT id FROM public.teams 
+        WHERE public.has_permission(organization_id, 'org:teams:write')
+    ) OR
+    public.is_super_admin()
+);
+
 -- Audit Logs
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
@@ -402,6 +482,49 @@ USING (
     (organization_id IN (SELECT public.current_user_org_ids()) AND public.has_permission(organization_id, 'audit:read')) OR
     public.is_super_admin()
 );
+
+-- Catalog and Configuration Tables (SEC-02)
+ALTER TABLE public.roles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.permissions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.role_permissions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.system_settings ENABLE ROW LEVEL SECURITY;
+
+-- Read-only catalog policies for application roles and permissions
+CREATE POLICY "Roles read policy"
+ON public.roles FOR SELECT
+TO authenticated, anon
+USING (true);
+
+CREATE POLICY "Roles write policy"
+ON public.roles FOR ALL
+USING (public.is_super_admin())
+WITH CHECK (public.is_super_admin());
+
+CREATE POLICY "Permissions read policy"
+ON public.permissions FOR SELECT
+TO authenticated, anon
+USING (true);
+
+CREATE POLICY "Permissions write policy"
+ON public.permissions FOR ALL
+USING (public.is_super_admin())
+WITH CHECK (public.is_super_admin());
+
+CREATE POLICY "Role permissions read policy"
+ON public.role_permissions FOR SELECT
+TO authenticated, anon
+USING (true);
+
+CREATE POLICY "Role permissions write policy"
+ON public.role_permissions FOR ALL
+USING (public.is_super_admin())
+WITH CHECK (public.is_super_admin());
+
+-- System Settings restricted strictly to platform super-admins
+CREATE POLICY "System settings admin policy"
+ON public.system_settings FOR ALL
+USING (public.is_super_admin())
+WITH CHECK (public.is_super_admin());
 
 -- 7. SEED DATA
 

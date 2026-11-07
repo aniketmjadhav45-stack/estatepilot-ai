@@ -18,6 +18,7 @@ import {
   Settings,
   ShieldAlert,
   Building,
+  UserCheck,
 } from 'lucide-react';
 import { OrgSwitcher } from './org-switcher';
 
@@ -35,6 +36,7 @@ export function Sidebar() {
     { name: 'Agent Dashboard', href: '/dashboard', icon: Home },
     { name: 'Agency Overview', href: '/agency', icon: Building },
     { name: 'CRM & Leads', href: '/dashboard/leads', icon: Users, badge: '12 New' },
+    { name: 'Contacts Directory', href: '/dashboard/contacts', icon: UserCheck },
     { name: 'Properties', href: '/dashboard/properties', icon: Compass },
     { name: 'Deal Pipeline', href: '/dashboard/deals', icon: Kanban },
     { name: 'Unified Inbox', href: '/dashboard/inbox', icon: MessageSquare, badge: '3' },

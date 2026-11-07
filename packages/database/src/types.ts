@@ -39,6 +39,7 @@ export interface Database {
           deleted_at?: string | null;
         };
         Update: Partial<Database['public']['Tables']['profiles']['Insert']>;
+        Relationships: [];
       };
       organizations: {
         Row: {
@@ -70,6 +71,7 @@ export interface Database {
           deleted_at?: string | null;
         };
         Update: Partial<Database['public']['Tables']['organizations']['Insert']>;
+        Relationships: [];
       };
       memberships: {
         Row: {
@@ -99,6 +101,7 @@ export interface Database {
           deleted_at?: string | null;
         };
         Update: Partial<Database['public']['Tables']['memberships']['Insert']>;
+        Relationships: [];
       };
       organization_invitations: {
         Row: {
@@ -130,6 +133,7 @@ export interface Database {
           updated_at?: string;
         };
         Update: Partial<Database['public']['Tables']['organization_invitations']['Insert']>;
+        Relationships: [];
       };
       roles: {
         Row: {
@@ -149,6 +153,7 @@ export interface Database {
           created_at?: string;
         };
         Update: Partial<Database['public']['Tables']['roles']['Insert']>;
+        Relationships: [];
       };
       audit_logs: {
         Row: {
@@ -176,8 +181,166 @@ export interface Database {
           created_at?: string;
         };
         Update: never;
+        Relationships: [];
+      };
+      contacts: {
+        Row: {
+          id: string;
+          organization_id: string;
+          first_name: string;
+          last_name: string;
+          email: string | null;
+          phone: string | null;
+          company: string | null;
+          type: 'client' | 'buyer' | 'seller' | 'renter' | 'landlord' | 'agent' | 'investor' | 'other';
+          address: Json;
+          tags: string[];
+          assigned_to_id: string | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          first_name: string;
+          last_name: string;
+          email?: string | null;
+          phone?: string | null;
+          company?: string | null;
+          type?: 'client' | 'buyer' | 'seller' | 'renter' | 'landlord' | 'agent' | 'investor' | 'other';
+          address?: Json;
+          tags?: string[];
+          assigned_to_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          deleted_at?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['contacts']['Insert']>;
+        Relationships: [];
+      };
+      leads: {
+        Row: {
+          id: string;
+          organization_id: string;
+          contact_id: string | null;
+          first_name: string;
+          last_name: string;
+          email: string | null;
+          phone: string | null;
+          status: 'new' | 'contacted' | 'qualified' | 'proposal' | 'negotiation' | 'closed_won' | 'closed_lost' | 'unqualified';
+          priority: 'low' | 'medium' | 'high' | 'urgent';
+          source: string;
+          qualification_score: number;
+          intent_summary: string | null;
+          estimated_budget_min: number | null;
+          estimated_budget_max: number | null;
+          currency: string;
+          property_preferences: Json;
+          assigned_to_id: string | null;
+          branch_id: string | null;
+          last_contacted_at: string | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          contact_id?: string | null;
+          first_name: string;
+          last_name: string;
+          email?: string | null;
+          phone?: string | null;
+          status?: 'new' | 'contacted' | 'qualified' | 'proposal' | 'negotiation' | 'closed_won' | 'closed_lost' | 'unqualified';
+          priority?: 'low' | 'medium' | 'high' | 'urgent';
+          source?: string;
+          qualification_score?: number;
+          intent_summary?: string | null;
+          estimated_budget_min?: number | null;
+          estimated_budget_max?: number | null;
+          currency?: string;
+          property_preferences?: Json;
+          assigned_to_id?: string | null;
+          branch_id?: string | null;
+          last_contacted_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          deleted_at?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['leads']['Insert']>;
+        Relationships: [];
+      };
+      tasks: {
+        Row: {
+          id: string;
+          organization_id: string;
+          lead_id: string | null;
+          contact_id: string | null;
+          title: string;
+          description: string | null;
+          task_type: 'call' | 'email' | 'visit' | 'meeting' | 'follow_up' | 'task' | 'review';
+          status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+          priority: 'low' | 'medium' | 'high' | 'urgent';
+          due_date: string | null;
+          completed_at: string | null;
+          assigned_to_id: string | null;
+          created_by_id: string | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          lead_id?: string | null;
+          contact_id?: string | null;
+          title: string;
+          description?: string | null;
+          task_type?: 'call' | 'email' | 'visit' | 'meeting' | 'follow_up' | 'task' | 'review';
+          status?: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+          priority?: 'low' | 'medium' | 'high' | 'urgent';
+          due_date?: string | null;
+          completed_at?: string | null;
+          assigned_to_id?: string | null;
+          created_by_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          deleted_at?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['tasks']['Insert']>;
+        Relationships: [];
+      };
+      activities: {
+        Row: {
+          id: string;
+          organization_id: string;
+          lead_id: string | null;
+          contact_id: string | null;
+          type: 'note' | 'call_logged' | 'email_sent' | 'status_change' | 'stage_moved' | 'task_completed' | 'visit_scheduled' | 'ai_interaction';
+          title: string;
+          description: string | null;
+          metadata: Json;
+          created_by_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          lead_id?: string | null;
+          contact_id?: string | null;
+          type: 'note' | 'call_logged' | 'email_sent' | 'status_change' | 'stage_moved' | 'task_completed' | 'visit_scheduled' | 'ai_interaction';
+          title: string;
+          description?: string | null;
+          metadata?: Json;
+          created_by_id?: string | null;
+          created_at?: string;
+        };
+        Update: never;
+        Relationships: [];
       };
     };
+    Views: Record<string, never>;
     Functions: {
       create_organization_with_owner: {
         Args: {
@@ -211,6 +374,26 @@ export interface Database {
         };
         Returns: boolean;
       };
+      get_invitation_by_token: {
+        Args: {
+          p_token_hash: string;
+        };
+        Returns: Json;
+      };
+      mask_email: {
+        Args: {
+          p_email: string;
+        };
+        Returns: string;
+      };
+      accept_invitation_atomic: {
+        Args: {
+          p_token_hash: string;
+        };
+        Returns: Json;
+      };
     };
+    Enums: Record<string, never>;
+    CompositeTypes: Record<string, never>;
   };
 }

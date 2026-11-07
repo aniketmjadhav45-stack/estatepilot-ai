@@ -86,16 +86,16 @@ export async function createOrganizationInvitation(
     const expiresAt = new Date(Date.now() + hours * 3600 * 1000).toISOString();
 
     // 4. Invalidate any prior pending invitation for this email in this org
-    await client
-      .from('organization_invitations')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (client.from as any)('organization_invitations')
       .update({ status: 'revoked' })
       .eq('organization_id', options.organizationId)
       .eq('email', emailNormalized)
       .eq('status', 'pending');
 
     // 5. Insert invitation record
-    const { data: invData, error: invError } = await client
-      .from('organization_invitations')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: invData, error: invError } = await (client.from as any)('organization_invitations')
       .insert({
         organization_id: options.organizationId,
         email: emailNormalized,
@@ -150,6 +150,30 @@ export async function verifyInvitation(
   try {
     const tokenHash = hashInvitationToken(rawToken);
 
+    // Prefer secure SECURITY DEFINER RPC to prevent exposing unauthenticated table queries
+    if (typeof (client as any).rpc === 'function') {
+      const { data: rpcData, error: rpcError } = await (client as any).rpc('get_invitation_by_token', {
+        p_token_hash: tokenHash,
+      });
+
+      if (!rpcError && rpcData) {
+        if (rpcData.status === 'expired') {
+          return err(new Error('This invitation has expired. Please ask your administrator to send a new invite.'));
+        }
+        return ok({
+          id: rpcData.id,
+          organizationId: rpcData.organization_id,
+          organizationName: rpcData.organization_name || 'Organization',
+          email: rpcData.email,
+          roleCode: rpcData.role_code || 'agent',
+          roleName: rpcData.role_name || 'Agent',
+          expiresAt: rpcData.expires_at,
+          status: rpcData.status,
+        });
+      }
+    }
+
+    // Fallback for mock environments without RPC definition
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (client.from('organization_invitations') as any)
       .select(`
@@ -174,8 +198,8 @@ export async function verifyInvitation(
 
     if (new Date(data.expires_at) < new Date()) {
       // Mark as expired
-      await client
-        .from('organization_invitations')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (client.from as any)('organization_invitations')
         .update({ status: 'expired' })
         .eq('id', data.id);
 
@@ -206,6 +230,22 @@ export async function acceptInvitation(
   acceptingUserId: string
 ): Promise<Result<{ organizationId: string; membershipId: string }, Error>> {
   try {
+    const tokenHash = hashInvitationToken(rawToken);
+
+    // Prefer atomic single-transaction RPC with row locking
+    if (typeof (client as any).rpc === 'function') {
+      const { data: rpcData, error: rpcError } = await (client as any).rpc('accept_invitation_atomic', {
+        p_token_hash: tokenHash,
+      });
+
+      if (!rpcError && rpcData && rpcData.organization_id && rpcData.membership_id) {
+        return ok({
+          organizationId: rpcData.organization_id,
+          membershipId: rpcData.membership_id,
+        });
+      }
+    }
+
     const verifyRes = await verifyInvitation(client, rawToken);
     if (!verifyRes.ok) {
       return err(verifyRes.error);
@@ -229,7 +269,6 @@ export async function acceptInvitation(
     }
 
     // Fetch full invitation record for role_id and branch_id
-    const tokenHash = hashInvitationToken(rawToken);
     const { data: fullInv } = await client
       .from('organization_invitations')
       .select('role_id, branch_id')
@@ -259,8 +298,8 @@ export async function acceptInvitation(
     }
 
     // Mark invitation as accepted
-    await client
-      .from('organization_invitations')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (client.from as any)('organization_invitations')
       .update({
         status: 'accepted',
         accepted_at: new Date().toISOString(),
@@ -268,7 +307,8 @@ export async function acceptInvitation(
       .eq('id', inv.id);
 
     // Audit log
-    await client.from('audit_logs').insert({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (client.from as any)('audit_logs').insert({
       organization_id: inv.organizationId,
       profile_id: acceptingUserId,
       action: 'invitation.accepted',

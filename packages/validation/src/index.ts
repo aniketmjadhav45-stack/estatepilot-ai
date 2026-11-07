@@ -1,4 +1,4 @@
 export * from './auth';
 export * from './organization';
 export * from './property';
-export * from './lead';
+export * from './crm';
